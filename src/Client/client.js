@@ -7,7 +7,6 @@
  *
  * Copyright (C) 2023 Michael G. <chrono@disilla.org>
  * All rights reserved.
- * Redistribution and use in source and binary forms governed under the terms of the zlib/libpng License with Acknowledgement license.
 */
 
 const { WebSocket } = require("ws");
@@ -199,20 +198,21 @@ class Client extends EventEmitter {
 	}
 
 	joinChannel(channel) {
-		// fetch(`http://${this.host}:${this.port}/api/channels/join?channel=${channel}&token=${this.token}`, {
-		// 	method: 'PUT',
-		// 	headers: {
-		// 		'Content-Type': 'application/json'
-		// 	}
-		// }).then(response => {
-		// 	if (response.status === 200) {
-		// 		return response.json();
-		// 	}
-		// }).then(data => {
-		// 	this.emit("joinChannel", data);
-		// }).catch(error => {
-		// 	console.log(error);
-		// });
+		fetch(`http://${this.host}:${this.port}/api/channels/${channel}`, {
+			method: 'PUT',
+			headers: {
+				'Content-Type': 'application/json',
+				'Authorization': `${this.token}`
+			}
+		}).then(response => {
+			if (response.status === 200) {
+				return response.json();
+			}
+		}).then(data => {
+			this.emit("joinChannel", data);
+		}).catch(error => {
+			console.log(error);
+		});
 	}
 
 	leaveChannel(channel) {
@@ -220,10 +220,11 @@ class Client extends EventEmitter {
 	}
 
 	deleteChannel(channel) {
-		fetch(`http://${this.host}:${this.port}/api/channels/delete?channel=${channel}&token=${this.token}`, {
+		return fetch(`http://${this.host}:${this.port+1}/api/channels/${channel}`, {
 			method: 'DELETE',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				'Authorization': `${this.token}`
 			}
 		}).then(response => {
 			if (response.status === 200) {
@@ -240,11 +241,54 @@ class Client extends EventEmitter {
 
 	}
 
+	api = {
+		getStatus: () => {
+			return fetch(`http://${this.host}:${this.port+1}/api/`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `${this.token}`
+				}
+			}).then(response => {
+				if (response.status === 200) {
+					return response.json();
+				}
+			}).then(data => {
+				return data;
+			}).catch(error => {
+				console.log(error);
+			});
+		},
+
+		getDummy: () => {
+			return fetch(`http://${this.host}:${this.port+1}/api/channels/2399528085903850934`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `${this.token}`
+				}
+			}).then(response => {
+				if (response.status === 200) {
+					return response.json();
+				} else return response.status;
+			}).then(data => {
+				return data;
+			}).catch(error => {
+				console.log(error);
+			});
+		}
+	}
+
 	createChannel(channel) {
-		fetch(`http://${hostname}:8081/api/channels/create?channel=${channel}&token=${this.token}`, {
+		return fetch(`http://${this.host}:${this.port+1}/api/v3/channels/`, {
+			body: JSON.stringify({
+				"name": channel,
+				"description": "A channel created by the client"
+			}),
 			method: 'POST',
 			headers: {
-				'Content-Type': 'application/json'
+				'Content-Type': 'application/json',
+				'Authorization': `${this.token}`
 			}
 		}).then(response => {
 			if (response.status === 200) {
@@ -253,14 +297,22 @@ class Client extends EventEmitter {
 				throw new Error(`Channel ${channel} already exists`);
 			} else if (response.status === 406) {
 				throw new Error("Channel name must be alphanumeric and lowercase");
+			} else if (response.status === 401) {
+				throw new Error("Unauthorized: Invalid token");
+			} else if (response.status === 403) {
+				throw new Error("Forbidden: You do not have permission to create channel");
+			} else if (response.status === 404) {
+				throw new Error("Not Found: Invalid channel id");
 			} else {
-				throw new Error("Unknown error");
+				throw new Error(`Error: ${response.status} - ${response.statusText}`);
 			}
 		}).then(data => {
-			this.emit("channelCreated", data.channelName);
+			this.emit("channelCreated", data.id);
+			return data;
 		}).catch(error => {
 			console.log(error);
 		});
+		
 	}
 }
 
