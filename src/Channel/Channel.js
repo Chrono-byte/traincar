@@ -1,4 +1,4 @@
-var client_store; 
+var client_store;
 
 class BaseChannel {
   constructor() {
@@ -18,12 +18,20 @@ class Channel extends BaseChannel {
     this.members = new Map();
 
     this.owner = owner;
-
-    client_store = client
   }
 
   send(message) {
     console.log(`Sending message to channel ${this.id}: ${message}`);;
+  }
+}
+
+class DirectMessageChannel extends BaseChannel {
+  constructor(id, members) {
+    super();
+
+    this.id = id;
+
+    this.members = [1, 2];
   }
 }
 
