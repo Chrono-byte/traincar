@@ -11,8 +11,4 @@
 */
 
 // Client
-exports.Client = require("./Client/client").Client;
-
-// // Structures
-// exports.Channel = require("./Client/channel").Channel;
-// exports.User = require("./User/user").User;
+exports.Client = require("./Client/Client");

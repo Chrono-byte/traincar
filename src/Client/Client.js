@@ -12,6 +12,10 @@
 const { WebSocket } = require("ws");
 const { EventEmitter } = require("events");
 
+const { Channel } = require("../Channel/Channel");
+const { User } = require("../User/User");
+const { Message } = require("../Message/Message");
+
 // hammer client
 class Client extends EventEmitter {
 	constructor(host, port) {
@@ -102,14 +106,14 @@ class Client extends EventEmitter {
 					throw new Error("Could not parse message");
 				}
 
-				// check sequence matches
-				if (message.sequence != (this.sequence + 1)) {
-					console.log(`Sequence mismatch, expected ${this.sequence}, got ${message.sequence}`);
-					return;
-				}
+				// set sequence
+				this.sequence = message.sequence + 1;
 
-				// update sequence
-				this.sequence += 1;
+				// check sequence matches
+				if (message.sequence != this.sequence - 1) {
+					console.error(`Sequence mismatch, expected ${this.sequence + 1}, got ${message.sequence}`);
+					process.exit(1);
+				}
 
 				switch (message.type) {
 					case "HELLO":
@@ -120,7 +124,7 @@ class Client extends EventEmitter {
 								data: {
 									heartbeat_interval: 1000
 								},
-								sequence: this.sequence += 1,
+								sequence: this.sequence,
 								type: "IDENTIFY"
 							}))
 
@@ -133,48 +137,39 @@ class Client extends EventEmitter {
 						this.socket.send(JSON.stringify({
 							op: 11,
 							data: {},
-							sequence: this.sequence += 1,
+							sequence: this.sequence,
 							type: "HEARTBEAT_ACK"
 						}))
 
 						this.emit("heartbeat", message);
 						break;
 					case "message":
-						this.emit("message", message);
+						this.emit("message", message.data.message);
 						break;
-					case "joinChannel":
+					case "CHANNEL_JOIN":
+						// set channel convenience variable
+						let channel = message.data.channel;
+
 						// add channel to channels map
-						this.channels.set(message.channel.id, {
-							id: message.channel.id,
-							name: message.channel.name,
-							description: message.channel.description,
-							owner: message.channel.owner,
-							users: message.channel.users
-						});
+						this.channels.set(channel.id, new Channel(channel.name, channel.description, channel.id, channel.owner, this.socket));
 
 						// emit the joinChannel event with the channel
-						this.emit("joinChannel", this.channels.get(message.channel.id));
+						this.emit("joinChannel", this.channels.get(message.data.channel.id));
 						break;
-					case "leaveChannel":
+					case "CHANNEL_LEAVE":
 						this.emit("leaveChannel", message);
 						break;
-					case "deleteChannel":
-						this.emit("deleteChannel", message);
-						break;
-					case "createChannel":
-						this.emit("createChannel", message);
-						break;
-					case "updateChannel":
+					case "CHANNEL_UPDATE":
 						this.emit("updateChannel", message);
+						break;
+					case "createUser":
+						this.emit("createUser", message);
 						break;
 					case "updateUser":
 						this.emit("updateUser", message);
 						break;
 					case "deleteUser":
 						this.emit("deleteUser", message);
-						break;
-					case "createUser":
-						this.emit("createUser", message);
 						break;
 					case "updateUser":
 						this.emit("updateUser", message);
@@ -183,6 +178,9 @@ class Client extends EventEmitter {
 						console.log(`Unknown message type from server, most likely a bug or an unimplemented feature ${message.type}`);
 						break;
 				}
+
+				// increment sequence
+				this.sequence += 1;
 
 				// console.log(`[message] Data received from server: ${event.data}`);
 			};
@@ -198,7 +196,7 @@ class Client extends EventEmitter {
 	}
 
 	joinChannel(channel) {
-		fetch(`http://${this.host}:${this.port}/api/channels/${channel}`, {
+		return fetch(`http://${this.host}:${this.port + 1}/api/channels/${channel}/members`, {
 			method: 'PUT',
 			headers: {
 				'Content-Type': 'application/json',
@@ -208,8 +206,11 @@ class Client extends EventEmitter {
 			if (response.status === 200) {
 				return response.json();
 			}
+			if (response.status === 500) {
+				throw new Error("Internal server error");
+			}
 		}).then(data => {
-			this.emit("joinChannel", data);
+			return data;
 		}).catch(error => {
 			console.log(error);
 		});
@@ -220,7 +221,7 @@ class Client extends EventEmitter {
 	}
 
 	deleteChannel(channel) {
-		return fetch(`http://${this.host}:${this.port+1}/api/channels/${channel}`, {
+		return fetch(`http://${this.host}:${this.port + 1}/api/channels/${channel}`, {
 			method: 'DELETE',
 			headers: {
 				'Content-Type': 'application/json',
@@ -237,53 +238,11 @@ class Client extends EventEmitter {
 		});
 	}
 
-	sendMessage(channel, message) {
-
-	}
-
-	api = {
-		getStatus: () => {
-			return fetch(`http://${this.host}:${this.port+1}/api/`, {
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `${this.token}`
-				}
-			}).then(response => {
-				if (response.status === 200) {
-					return response.json();
-				}
-			}).then(data => {
-				return data;
-			}).catch(error => {
-				console.log(error);
-			});
-		},
-
-		getDummy: () => {
-			return fetch(`http://${this.host}:${this.port+1}/api/channels/2399528085903850934`, {
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `${this.token}`
-				}
-			}).then(response => {
-				if (response.status === 200) {
-					return response.json();
-				} else return response.status;
-			}).then(data => {
-				return data;
-			}).catch(error => {
-				console.log(error);
-			});
-		}
-	}
-
-	createChannel(channel) {
-		return fetch(`http://${this.host}:${this.port+1}/api/channels`, {
+	createChannel(channel, description) {
+		return fetch(`http://${this.host}:${this.port + 1}/api/channels`, {
 			body: JSON.stringify({
 				"name": channel,
-				"description": "A channel created by the client"
+				"description": description
 			}),
 			method: 'POST',
 			headers: {
@@ -312,8 +271,64 @@ class Client extends EventEmitter {
 		}).catch(error => {
 			console.log(error);
 		});
+	}
 
+	getChannelInfo(channel) {
+		return fetch(`http://${this.host}:${this.port + 1}/api/channels/${channel}`, {
+			method: 'GET',
+			headers: {
+				'Content-Type': 'application',
+				'Authorization': `${this.token}`
+			}
+		}).then(response => {
+			if (response.status === 200) {
+				return response.json();
+			}
+		}).then(data => {
+			return data;
+		}).catch(error => {
+			console.log(error);
+		}
+		);
+	}
+
+	api = {
+		getStatus: () => {
+			return fetch(`http://${this.host}:${this.port + 1}/api/`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `${this.token}`
+				}
+			}).then(response => {
+				if (response.status === 200) {
+					return response.json();
+				}
+			}).then(data => {
+				return data;
+			}).catch(error => {
+				console.log(error);
+			});
+		},
+
+		getDummy: () => {
+			return fetch(`http://${this.host}:${this.port + 1}/api/channels/2399528085903850934`, {
+				method: 'GET',
+				headers: {
+					'Content-Type': 'application/json',
+					'Authorization': `${this.token}`
+				}
+			}).then(response => {
+				if (response.status === 200) {
+					return response.json();
+				} else return response.status;
+			}).then(data => {
+				return data;
+			}).catch(error => {
+				console.log(error);
+			});
+		}
 	}
 }
 
-module.exports = { Client };
+module.exports = Client;
