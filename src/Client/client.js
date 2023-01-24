@@ -280,7 +280,7 @@ class Client extends EventEmitter {
 	}
 
 	createChannel(channel) {
-		return fetch(`http://${this.host}:${this.port+1}/api/v3/channels`, {
+		return fetch(`http://${this.host}:${this.port+1}/api/channels`, {
 			body: JSON.stringify({
 				"name": channel,
 				"description": "A channel created by the client"
