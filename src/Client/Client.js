@@ -34,6 +34,7 @@ class Client extends EventEmitter {
 	}
 
 	login(username, password) {
+		// authenticate with the auth server
 		fetch(`http://${this.host}:${this.port + 1}/auth/login/email?username=${username}&password=${password}`, {
 			method: 'POST',
 			headers: {
@@ -56,6 +57,7 @@ class Client extends EventEmitter {
 				return;
 			}
 
+			// set token
 			this.token = data.token;
 
 			// set username and id
@@ -65,7 +67,7 @@ class Client extends EventEmitter {
 			// connect to websocket
 			this.emit("login");
 		}).catch(error => {
-			console.log(error);
+			console.error(`Failed to login: ${error}`);
 		});
 
 
@@ -75,7 +77,7 @@ class Client extends EventEmitter {
 				// connect to websocket
 				this.socket = new WebSocket(`ws://${this.host}:${this.port}?token=${this.token}`);
 			} catch {
-				console.log("Failed to connect to server");
+				console.error("Failed to connect to server");
 				// emit the logout event
 				this.emit("logout");
 			}
@@ -88,12 +90,24 @@ class Client extends EventEmitter {
 
 			// when socket is closed, emit the close event
 			this.socket.onclose = () => {
+				// remove all client data
+				this.channels.clear();
+				this.users.clear();
+				this.username = null;
+				this.id = null;
+				this.token = null;
+				this.sequence = null;
+				this.user = null;
+
+				// set socket to closed
+
+				// emit the logout event
 				this.emit("logout");
 			}
 
 			// handle conection errors
 			this.socket.onerror = (error) => {
-				console.log(`WebSocket error: ${error.message}`);
+				console.error(`WebSocket error: ${error.message}`);
 			}
 
 			// Listen for messages from the server
@@ -109,10 +123,8 @@ class Client extends EventEmitter {
 				// set sequence
 				this.sequence = message.sequence + 1;
 
-				// check sequence matches
-				if (message.sequence != this.sequence - 1) {
-					console.error(`Sequence mismatch, expected ${this.sequence + 1}, got ${message.sequence}`);
-					process.exit(1);
+				if (message.op == 9 && message.type == "ERROR") {
+					throw new Error(`Error: ${message.data.message}`);
 				}
 
 				switch (message.type) {
@@ -262,8 +274,10 @@ class Client extends EventEmitter {
 				throw new Error("Forbidden: You do not have permission to create channel");
 			} else if (response.status === 404) {
 				throw new Error("Not Found: Invalid channel id");
+			} else if (response.status === 500) {
+				throw new Error("Internal server error");
 			} else {
-				throw new Error(`Error: ${response.status} - ${response.statusText}`);
+				// throw new Error(`Error: ${response.status} - ${response.statusText}`);
 			}
 		}).then(data => {
 			this.emit("channelCreated", data.id);
@@ -293,7 +307,8 @@ class Client extends EventEmitter {
 	}
 
 	api = {
-		getStatus: () => {
+		// gets the status + brand of the server
+		status: () => {
 			return fetch(`http://${this.host}:${this.port + 1}/api/`, {
 				method: 'GET',
 				headers: {
@@ -309,26 +324,10 @@ class Client extends EventEmitter {
 			}).catch(error => {
 				console.log(error);
 			});
-		},
-
-		getDummy: () => {
-			return fetch(`http://${this.host}:${this.port + 1}/api/channels/2399528085903850934`, {
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `${this.token}`
-				}
-			}).then(response => {
-				if (response.status === 200) {
-					return response.json();
-				} else return response.status;
-			}).then(data => {
-				return data;
-			}).catch(error => {
-				console.log(error);
-			});
 		}
 	}
+
+
 }
 
 module.exports = Client;

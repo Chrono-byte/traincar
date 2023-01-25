@@ -21,25 +21,22 @@ client.on('ready', () => {
     console.log(`Logged in as ${client.username} (${client.id})`);
 
     // check the status of the server
-    // client.api.getStatus().then((status) => {
-    //     console.log(status);
-    // })
+    client.api.status().then((status) => {
+        console.log(`Server Name: ${status.name}`);
+        console.log(`Server Description: ${status.description}`);
 
-    // try to create a new channel
-    client.createChannel("test" + Math.floor(Math.random() * 1000), "Test channel").then((channel) => {
-        client.joinChannel(channel.id)
-    });
+        console.log(status);
+    })
 })
 
 client.on("joinChannel", (channel) => {
-    console.log(`Joined channel ${channel.name} (${channel.id})`);
-
-    client.channels.get(channel.id).send("Hello world!");
+    console.log(`Joined channel ${channel.name} (${channel.id}) with description ${channel.description}`);
 })
 
 client.on("logout", () => {
     console.log("Logged out");
 })
 
-// login
 client.login("admin@disilla.org", "password");
+
+// client.logout();
