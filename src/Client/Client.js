@@ -14,7 +14,7 @@ const { EventEmitter } = require("events");
 
 const { Channel } = require("../Channel/Channel");
 const { User } = require("../User/User");
-const { Message } = require("../Message/Message");
+const Message = require("../Message/Message");
 
 // hammer client
 class Client extends EventEmitter {
@@ -82,7 +82,7 @@ class Client extends EventEmitter {
 				this.emit("logout");
 			}
 
-			// once the socket is open, emit the ready event
+			// once the socket is open
 			this.socket.onopen = (event) => {
 				// set sequence
 				this.sequence = 0;
@@ -140,6 +140,37 @@ class Client extends EventEmitter {
 								type: "IDENTIFY"
 							}))
 
+							// set timeout for fetching all channels
+							setTimeout(() => {
+								// get all channels that the user is in api:port/api/user/:id/channels
+								fetch(`http://${this.host}:${this.port + 1}/api/user/${this.id}/channels`, {
+									method: 'GET',
+									headers: {
+										'Content-Type': 'application/json',
+										'Authorization': `${this.token}`
+									}
+								}).then(response => {
+									if (response.status === 200) {
+										return response.json();
+									} else if (response.status === 500) {
+										throw new Error(`Internal server error ${response.body}`);
+									} else if (response.status === 401) {
+										throw new Error("Invalid username or password");
+									} else {
+										throw new Error(`Unknown error ${response.status}`);
+									}
+								}).then(data => {
+									console.log(data);
+
+									// add all channels to the client
+									// for (let channel of data) {
+									// 	this.channels.set(channel.id, new Channel(channel, this));
+									// }
+								}).catch(error => {
+									console.error(`Failed to get channels: ${error}`);
+								});
+							}, 300);
+
 							// emit the ready event
 							this.emit("ready");
 						}
@@ -156,7 +187,13 @@ class Client extends EventEmitter {
 						this.emit("heartbeat", message);
 						break;
 					case "message":
-						this.emit("message", message.data.message);
+						// console.log(message);
+
+						let msg = new Message(message.d, this);
+
+						// console.log(msg);
+
+						this.emit("message", msg);
 						break;
 					case "CHANNEL_JOIN":
 						// set channel convenience variable
@@ -164,6 +201,8 @@ class Client extends EventEmitter {
 
 						// add channel to channels map
 						this.channels.set(channel.id, new Channel(channel.name, channel.description, channel.id, channel.owner, this.socket));
+
+						console.log(this.channels.get(channel.id));
 
 						// emit the joinChannel event with the channel
 						this.emit("joinChannel", this.channels.get(message.data.channel.id));

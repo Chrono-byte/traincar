@@ -13,28 +13,38 @@ const { Client } = require("./src/index.js");
 const client = new Client("localhost", 8080);
 
 client.on("message", (message) => {
-    console.log(message);
+	// console.log(client.channels.get(message.channel.id));
+
+	// console.log(message);
 })
 
 client.on('ready', () => {
-    // log our username and id
-    console.log(`Logged in as ${client.username} (${client.id})`);
+	// log our username and id
+	console.log(`Logged in as ${client.username} (${client.id})`);
 
-    // check the status of the server
-    client.api.status().then((status) => {
-        console.log(`Server Name: ${status.name}`);
-        console.log(`Server Description: ${status.description}`);
+	// create a new channel, then join it, then list the channel's owner
+	client.createChannel(`test${Math.floor(Math.random() * 10000)}`, "test channel").then((channel) => {
+		console.log(`Created channel ${channel.name} (${channel.id}) with description ${channel.description}`);
+		client.joinChannel(channel.id).then((channel) => {
+			channel = client.channels.get(channel.id);
 
-        console.log(status);
-    })
+			// send a message to the channel
+			channel.send("test message");
+		});
+	});
+
+	// log all channels
+	client.channels.forEach((channel) => {
+		console.log(`Channel ${channel.name} (${channel.id}) with description ${channel.description}`);
+	});
 })
 
 client.on("joinChannel", (channel) => {
-    console.log(`Joined channel ${channel.name} (${channel.id}) with description ${channel.description}`);
+	console.log(`Joined channel ${channel.name} (${channel.id}) with description ${channel.description}`);
 })
 
 client.on("logout", () => {
-    console.log("Logged out");
+	console.log("Logged out");
 })
 
 client.login("admin@disilla.org", "password");
