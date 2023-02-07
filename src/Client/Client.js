@@ -87,8 +87,7 @@ class Client extends EventEmitter {
 
 			// once the socket is open
 			this.socket.onopen = (event) => {
-				// set sequence
-				this.sequence = 0;
+				// 
 			};
 
 			// when socket is closed, emit the close event
@@ -99,7 +98,6 @@ class Client extends EventEmitter {
 				this.username = null;
 				this.id = null;
 				this.token = null;
-				this.sequence = null;
 				this.user = null;
 
 				// set socket to closed
@@ -123,9 +121,6 @@ class Client extends EventEmitter {
 					throw new Error("Could not parse message");
 				}
 
-				// set sequence
-				this.sequence = message.sequence + 1;
-
 				if (message.op == 9 && message.type == "ERROR") {
 					throw new Error(`Error: ${message.data.message}`);
 				}
@@ -139,7 +134,6 @@ class Client extends EventEmitter {
 								data: {
 									heartbeat_interval: 1000
 								},
-								sequence: this.sequence,
 								type: "IDENTIFY"
 							}))
 
@@ -183,7 +177,6 @@ class Client extends EventEmitter {
 						this.socket.send(JSON.stringify({
 							op: 11,
 							data: {},
-							sequence: this.sequence,
 							type: "HEARTBEAT_ACK"
 						}))
 
@@ -232,9 +225,6 @@ class Client extends EventEmitter {
 						console.log(`Unknown message type from server, most likely a bug or an unimplemented feature ${message.type}`);
 						break;
 				}
-
-				// increment sequence
-				this.sequence += 1;
 
 				// console.log(`[message] Data received from server: ${event.data}`);
 			};
