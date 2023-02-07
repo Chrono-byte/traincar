@@ -28,6 +28,9 @@ class Client extends EventEmitter {
 		// client user
 		// this.user = new User();
 
+		// handle messages from the client
+		this.messageEmitter = new EventEmitter();
+
 		// initialize data structures
 		this.channels = new Map();
 		this.users = new Map();
@@ -160,19 +163,19 @@ class Client extends EventEmitter {
 										throw new Error(`Unknown error ${response.status}`);
 									}
 								}).then(data => {
-									console.log(data);
-
 									// add all channels to the client
-									// for (let channel of data) {
-									// 	this.channels.set(channel.id, new Channel(channel, this));
-									// }
+									for (let channel of data) {
+										let { id, name, description, owner } = channel[1];
+
+										this.channels.set(channel[0], new Channel(id, name, description, owner));
+									}
+
+									// emit the ready event
+									this.emit("ready");
 								}).catch(error => {
 									console.error(`Failed to get channels: ${error}`);
 								});
-							}, 300);
-
-							// emit the ready event
-							this.emit("ready");
+							}, 125);
 						}
 						break;
 					case "HEARTBEAT":
@@ -202,7 +205,7 @@ class Client extends EventEmitter {
 						// add channel to channels map
 						this.channels.set(channel.id, new Channel(channel.name, channel.description, channel.id, channel.owner, this.socket));
 
-						console.log(this.channels.get(channel.id));
+						// console.log(this.channels.get(channel.id));
 
 						// emit the joinChannel event with the channel
 						this.emit("joinChannel", this.channels.get(message.data.channel.id));

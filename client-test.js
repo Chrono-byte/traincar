@@ -15,27 +15,20 @@ const client = new Client("localhost", 8080);
 client.on("message", (message) => {
 	// console.log(client.channels.get(message.channel.id));
 
-	// console.log(message);
+	console.log(message);
 })
 
 client.on('ready', () => {
 	// log our username and id
 	console.log(`Logged in as ${client.username} (${client.id})`);
 
+	// log size of client.channels
+	console.log(`Loaded ${client.channels.size} channels.`);
+
 	// create a new channel, then join it, then list the channel's owner
 	client.createChannel(`test${Math.floor(Math.random() * 10000)}`, "test channel").then((channel) => {
 		console.log(`Created channel ${channel.name} (${channel.id}) with description ${channel.description}`);
-		client.joinChannel(channel.id).then((channel) => {
-			channel = client.channels.get(channel.id);
-
-			// send a message to the channel
-			channel.send("test message");
-		});
-	});
-
-	// log all channels
-	client.channels.forEach((channel) => {
-		console.log(`Channel ${channel.name} (${channel.id}) with description ${channel.description}`);
+		client.joinChannel(channel.id).then((channel) => { });
 	});
 })
 

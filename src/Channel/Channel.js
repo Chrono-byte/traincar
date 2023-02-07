@@ -7,7 +7,7 @@ class BaseChannel {
 }
 
 class Channel extends BaseChannel {
-  constructor(name, description, id, owner) {
+  constructor(id, name, description, owner) {
     super();
 
     this.name = name;
