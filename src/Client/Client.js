@@ -56,8 +56,7 @@ class Client extends EventEmitter {
 		}).then(data => {
 			// check that token is valid
 			if (data.token == null) {
-				console.log("Invalid token");
-				return;
+				throw new Error("Invalid token");
 			}
 
 			// set token
@@ -70,7 +69,13 @@ class Client extends EventEmitter {
 			// connect to websocket
 			this.emit("login");
 		}).catch(error => {
-			console.error(`Failed to login: ${error}`);
+			if (error.code === "ECONNREFUSED") {
+				throw new Error("Server is offline");
+			} else if (error.code === "ECONNRESET") {
+				throw new Error("Server is offline");
+			} else {
+				console.error(error);
+			}
 		});
 
 
@@ -87,7 +92,7 @@ class Client extends EventEmitter {
 
 			// once the socket is open
 			this.socket.onopen = (event) => {
-				// 
+				//
 			};
 
 			// when socket is closed, emit the close event
@@ -132,12 +137,13 @@ class Client extends EventEmitter {
 							this.socket.send(JSON.stringify({
 								op: 11,
 								data: {
-									heartbeat_interval: 1000
+									heartbeat_interval: 1000,
+									heartbeat_timeout: 5000
 								},
 								type: "IDENTIFY"
 							}))
 
-							// set timeout for fetching all channels
+							// wait 125ms then request channels on the server
 							setTimeout(() => {
 								// get all channels that the user is in api:port/api/user/:id/channels
 								fetch(`http://${this.host}:${this.port + 1}/api/user/${this.id}/channels`, {
@@ -159,9 +165,11 @@ class Client extends EventEmitter {
 								}).then(data => {
 									// add all channels to the client
 									for (let channel of data) {
-										let { id, name, description, owner } = channel[1];
+										channel = channel[1];
 
-										this.channels.set(channel[0], new Channel(id, name, description, owner));
+										var { id, name, description, owner } = channel;
+
+										this.channels.set(id, new Channel(id, name, description, owner, this));
 									}
 
 									// emit the ready event
@@ -170,6 +178,32 @@ class Client extends EventEmitter {
 									console.error(`Failed to get channels: ${error}`);
 								});
 							}, 125);
+
+							// wait 250ms then request users on the server
+							/* setTimeout(() => {
+								// get all users on the server api:port/api/users
+								fetch(`http://${this.host}:${this.port + 1}/api/users`, {
+									method: 'GET',
+									headers: {
+										'Content-Type': 'application/json',
+										'Authorization': `${this.token}`
+									}
+								}).then(response => {
+									if (response.status === 200) {
+										return response.json();
+									} else if (response.status === 500) {
+										throw new Error(`Internal server error ${response.body}`);
+									} else if (response.status === 401) {
+										throw new Error("Invalid username or password");
+									} else {
+										throw new Error(`Unknown error ${response.status}`);
+									}
+								}).then(data => {}).catch(error => {
+									console.error(`Failed to get users: ${error}`);
+								});
+							}, 250); */
+						} else {
+							throw new Error(`Error: ${message.data.message}`);
 						}
 						break;
 					case "HEARTBEAT":
@@ -182,47 +216,55 @@ class Client extends EventEmitter {
 
 						this.emit("heartbeat", message);
 						break;
-					case "message":
-						// console.log(message);
+					case "MESSAGE": // message event
 
-						let msg = new Message(message.d, this);
+						// create a new message object
+						let msg = new Message(message.data, this);
 
-						// console.log(msg);
+						// remove the recursive Client object from the message
+						delete msg.channel.client;
 
 						this.emit("message", msg);
 						break;
 					case "CHANNEL_JOIN":
 						// set channel convenience variable
-						let channel = message.data.channel;
+						var channel = message.data.channel;
 
 						// add channel to channels map
-						this.channels.set(channel.id, new Channel(channel.name, channel.description, channel.id, channel.owner, this.socket));
-
-						// console.log(this.channels.get(channel.id));
+						this.channels.set(channel.id, new Channel(channel.name, channel.description, channel.id, channel.owner, this));
 
 						// emit the joinChannel event with the channel
 						this.emit("joinChannel", this.channels.get(message.data.channel.id));
 						break;
-					case "CHANNEL_LEAVE":
+					case "CHANNEL_LEAVE": // leave channel event
 						this.emit("leaveChannel", message);
 						break;
-					case "CHANNEL_UPDATE":
+					case "CHANNEL_UPDATE": // update channel event
 						this.emit("updateChannel", message);
 						break;
-					case "createUser":
+					case "CREATE_USER": // create user event
 						this.emit("createUser", message);
 						break;
-					case "updateUser":
+					case "UPDATE_USER":
 						this.emit("updateUser", message);
 						break;
-					case "deleteUser":
+					case "DELETE_USER":
 						this.emit("deleteUser", message);
 						break;
-					case "updateUser":
+					case "UPDATE_USER":
 						this.emit("updateUser", message);
 						break;
+					case "UPDATE_MEMBERS":
+						// get the channel that the members are being updated for
+						var channel = this.channels.get(message.data.channel);
+
+						// update the members
+						channel.members = message.data.members;
+
+						this.emit("updateMembers", message);
+						break;
 					default:
-						console.log(`Unknown message type from server, most likely a bug or an unimplemented feature ${message.type}`);
+						console.error(`Unknown message type from server, most likely a bug or an unimplemented feature ${message.type}`);
 						break;
 				}
 
@@ -235,7 +277,7 @@ class Client extends EventEmitter {
 		try {
 			this.socket.close();
 		} catch {
-			console.log("Not connected to a server");
+			console.error("Failed to close socket, most likely not connected to server");
 		}
 	}
 
@@ -312,7 +354,7 @@ class Client extends EventEmitter {
 				// throw new Error(`Error: ${response.status} - ${response.statusText}`);
 			}
 		}).then(data => {
-			this.emit("channelCreated", data.id);
+			this.emit("CREATE_CHANNEL", data.id);
 			return data;
 		}).catch(error => {
 			console.log(error);

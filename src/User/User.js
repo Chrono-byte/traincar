@@ -10,11 +10,11 @@
 */
 
 class User {
-    constructor(permissions) {
-        this.id = id;
-        this.username = username;
-        this.permissions = permissions;
-    }
+	constructor(id, username, permissions) {
+		this.id = id;
+		this.username = username;
+		this.permissions = permissions;
+	}
 }
 
 module.exports = { User };
