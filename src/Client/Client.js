@@ -13,23 +13,16 @@ const { WebSocket } = require("ws");
 const { EventEmitter } = require("events");
 
 const { Channel } = require("../Channel/Channel");
-const { User } = require("../User/User");
 const Message = require("../Message/Message");
 
 // hammer client
 class Client extends EventEmitter {
-	constructor(host, port) {
+	constructor(host) {
 		super();
 
 		// set host and port
-		this.host = host;
-		this.port = port;
-
-		// client user
-		// this.user = new User();
-
-		// handle messages from the client
-		this.messageEmitter = new EventEmitter();
+		this.host = host.hostname;
+		this.port = host.port;
 
 		// initialize data structures
 		this.channels = new Map();
@@ -39,9 +32,9 @@ class Client extends EventEmitter {
 	login(username, password) {
 		// authenticate with the auth server
 		fetch(`http://${this.host}:${this.port + 1}/auth/login/email?username=${username}&password=${password}`, {
-			method: 'POST',
+			method: "POST",
 			headers: {
-				'Content-Type': 'application/json'
+				"Content-Type": "application/json"
 			}
 		}).then(response => {
 			if (response.status === 200) {
@@ -84,6 +77,10 @@ class Client extends EventEmitter {
 			try {
 				// connect to websocket
 				this.socket = new WebSocket(`ws://${this.host}:${this.port}?token=${this.token}`);
+
+				this.socket.json = (data) => {
+					this.socket.send(JSON.stringify(data));
+				};
 			} catch {
 				console.error("Failed to connect to server");
 				// emit the logout event
@@ -91,9 +88,7 @@ class Client extends EventEmitter {
 			}
 
 			// once the socket is open
-			this.socket.onopen = (event) => {
-				//
-			};
+			this.socket.onopen = () => {};
 
 			// when socket is closed, emit the close event
 			this.socket.onclose = () => {
@@ -109,12 +104,12 @@ class Client extends EventEmitter {
 
 				// emit the logout event
 				this.emit("logout");
-			}
+			};
 
 			// handle conection errors
 			this.socket.onerror = (error) => {
 				console.error(`WebSocket error: ${error.message}`);
-			}
+			};
 
 			// Listen for messages from the server
 			this.socket.onmessage = (event) => {
@@ -130,6 +125,7 @@ class Client extends EventEmitter {
 					throw new Error(`Error: ${message.data.message}`);
 				}
 
+				var channel;
 				switch (message.type) {
 					case "HELLO":
 						if (message.data.message == "Authorized" && message.op == 10) {
@@ -141,16 +137,16 @@ class Client extends EventEmitter {
 									heartbeat_timeout: 5000
 								},
 								type: "IDENTIFY"
-							}))
+							}));
 
 							// wait 125ms then request channels on the server
 							setTimeout(() => {
 								// get all channels that the user is in api:port/api/user/:id/channels
 								fetch(`http://${this.host}:${this.port + 1}/api/user/${this.id}/channels`, {
-									method: 'GET',
+									method: "GET",
 									headers: {
-										'Content-Type': 'application/json',
-										'Authorization': `${this.token}`
+										"Content-Type": "application/json",
+										"Authorization": `${this.token}`
 									}
 								}).then(response => {
 									if (response.status === 200) {
@@ -175,33 +171,34 @@ class Client extends EventEmitter {
 									// emit the ready event
 									this.emit("ready");
 								}).catch(error => {
+									console.log(error);
 									console.error(`Failed to get channels: ${error}`);
 								});
 							}, 125);
 
 							// wait 250ms then request users on the server
 							/* setTimeout(() => {
-								// get all users on the server api:port/api/users
-								fetch(`http://${this.host}:${this.port + 1}/api/users`, {
-									method: 'GET',
-									headers: {
-										'Content-Type': 'application/json',
-										'Authorization': `${this.token}`
-									}
-								}).then(response => {
-									if (response.status === 200) {
-										return response.json();
-									} else if (response.status === 500) {
-										throw new Error(`Internal server error ${response.body}`);
-									} else if (response.status === 401) {
-										throw new Error("Invalid username or password");
-									} else {
-										throw new Error(`Unknown error ${response.status}`);
-									}
-								}).then(data => {}).catch(error => {
-									console.error(`Failed to get users: ${error}`);
-								});
-							}, 250); */
+										// get all users on the server api:port/api/users
+										fetch(`http://${this.host}:${this.port + 1}/api/users`, {
+											method: 'GET',
+											headers: {
+												'Content-Type': 'application/json',
+												'Authorization': `${this.token}`
+											}
+										}).then(response => {
+											if (response.status === 200) {
+												return response.json();
+											} else if (response.status === 500) {
+												throw new Error(`Internal server error ${response.body}`);
+											} else if (response.status === 401) {
+												throw new Error("Invalid username or password");
+											} else {
+												throw new Error(`Unknown error ${response.status}`);
+											}
+										}).then(data => {}).catch(error => {
+											console.error(`Failed to get users: ${error}`);
+										});
+									}, 250); */
 						} else {
 							throw new Error(`Error: ${message.data.message}`);
 						}
@@ -212,23 +209,20 @@ class Client extends EventEmitter {
 							op: 11,
 							data: {},
 							type: "HEARTBEAT_ACK"
-						}))
+						}));
 
 						this.emit("heartbeat", message);
 						break;
 					case "MESSAGE": // message event
 
 						// create a new message object
-						let msg = new Message(message.data, this);
-
-						// remove the recursive Client object from the message
-						delete msg.channel.client;
+						var msg = new Message(message.data, this);
 
 						this.emit("message", msg);
 						break;
 					case "CHANNEL_JOIN":
 						// set channel convenience variable
-						var channel = message.data.channel;
+						channel = message.data.channel;
 
 						// add channel to channels map
 						this.channels.set(channel.id, new Channel(channel.name, channel.description, channel.id, channel.owner, this));
@@ -251,12 +245,9 @@ class Client extends EventEmitter {
 					case "DELETE_USER":
 						this.emit("deleteUser", message);
 						break;
-					case "UPDATE_USER":
-						this.emit("updateUser", message);
-						break;
 					case "UPDATE_MEMBERS":
 						// get the channel that the members are being updated for
-						var channel = this.channels.get(message.data.channel);
+						channel = this.channels.get(message.data.channel);
 
 						// update the members
 						channel.members = message.data.members;
@@ -267,8 +258,6 @@ class Client extends EventEmitter {
 						console.error(`Unknown message type from server, most likely a bug or an unimplemented feature ${message.type}`);
 						break;
 				}
-
-				// console.log(`[message] Data received from server: ${event.data}`);
 			};
 		});
 	}
@@ -283,10 +272,10 @@ class Client extends EventEmitter {
 
 	joinChannel(channel) {
 		return fetch(`http://${this.host}:${this.port + 1}/api/channels/${channel}/members`, {
-			method: 'PUT',
+			method: "PUT",
 			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `${this.token}`
+				"Content-Type": "application/json",
+				"Authorization": `${this.token}`
 			}
 		}).then(response => {
 			if (response.status === 200) {
@@ -303,22 +292,25 @@ class Client extends EventEmitter {
 	}
 
 	leaveChannel(channel) {
-
+		/* TODO: Unimplemented */
+		console.error("Unimplemented " + channel);
 	}
 
 	deleteChannel(channel) {
 		return fetch(`http://${this.host}:${this.port + 1}/api/channels/${channel}`, {
-			method: 'DELETE',
+			method: "DELETE",
 			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `${this.token}`
+				"Content-Type": "application/json",
+				"Authorization": `${this.token}`
 			}
 		}).then(response => {
 			if (response.status === 200) {
 				return response.json();
 			}
 		}).then(data => {
-			appendMessage("Channel deleted: " + data.channelName);
+			if (data.success) {
+				this.channels.delete(channel);
+			}
 		}).catch(error => {
 			console.log(error);
 		});
@@ -330,10 +322,10 @@ class Client extends EventEmitter {
 				"name": channel,
 				"description": description
 			}),
-			method: 'POST',
+			method: "POST",
 			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': `${this.token}`
+				"Content-Type": "application/json",
+				"Authorization": `${this.token}`
 			}
 		}).then(response => {
 			if (response.status === 200) {
@@ -363,10 +355,10 @@ class Client extends EventEmitter {
 
 	getChannelInfo(channel) {
 		return fetch(`http://${this.host}:${this.port + 1}/api/channels/${channel}`, {
-			method: 'GET',
+			method: "GET",
 			headers: {
-				'Content-Type': 'application',
-				'Authorization': `${this.token}`
+				"Content-Type": "application",
+				"Authorization": `${this.token}`
 			}
 		}).then(response => {
 			if (response.status === 200) {
@@ -380,28 +372,23 @@ class Client extends EventEmitter {
 		);
 	}
 
-	api = {
-		// gets the status + brand of the server
-		status: () => {
-			return fetch(`http://${this.host}:${this.port + 1}/api/`, {
-				method: 'GET',
-				headers: {
-					'Content-Type': 'application/json',
-					'Authorization': `${this.token}`
-				}
-			}).then(response => {
-				if (response.status === 200) {
-					return response.json();
-				}
-			}).then(data => {
-				return data;
-			}).catch(error => {
-				console.log(error);
-			});
-		}
+	servStatus() {
+		return fetch(`http://${this.host}:${this.port + 1}/api/`, {
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json",
+				"Authorization": `${this.token}`
+			}
+		}).then(response => {
+			if (response.status === 200) {
+				return response.json();
+			}
+		}).then(data => {
+			return data;
+		}).catch(error => {
+			console.log(error);
+		});
 	}
-
-
 }
 
 module.exports = Client;

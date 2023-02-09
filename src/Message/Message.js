@@ -1,20 +1,16 @@
 class Message {
-	constructor(data, client, replyingTo) {
-		this.content = data.content;
+	constructor(data, client, channel) {
+		this.content = (data.content ? data.content : data);
 		this.author = data.author;
-		this.channel = client.channels.get(data.channel.id);
+		this.channel = client.channels.get(data.channel?.id) || channel;
 
-		this.reply = {
-			yes: (replyingTo ? true : false),
-			message: replyingTo
-		};
+		this.createdAt = new Date();
+
+		this.client = client;
 	}
 
-	reply (content) {
-		this.channel.send({
-			content: content,
-			replyingTo: this.id
-		});
+	reply(content) {
+		this.channel.send(content, this.id);
 	}
 }
 

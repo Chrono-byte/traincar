@@ -10,10 +10,41 @@
 */
 
 const { Client } = require("./src/index.js");
-const client = new Client("localhost", 8080);
+const client = new Client({
+	hostname: "localhost",
+	port: 8080
+});
 
 client.on("message", (message) => {
-	console.log(message);
+	console.log(`Received message from ${message.author.username} (${message.author.id}): ${message.content}`);
+
+	// regex to match "Hello, NAME"
+	const regex = /^Hello, ([a-zA-Z0-9]+)!$/;
+
+	// if the message matches the regex
+	switch (message.content) {
+		case "Hello, world!":
+			if (client.username == "chrono") {
+				message.reply(`Hello, ${message.author.username}!`);
+
+				console.log("greetings sent");
+				return;
+			}
+			if (client.username == "admin") {
+				message.reply(`Hello, ${message.author.username}!`);
+
+				console.log("greetings sent");
+				return;
+			}
+			break;
+		default:
+			if (regex.test(message.content)) {
+				console.log("greetings received");
+				return;
+			}
+			break;
+
+	}
 });
 
 client.on("ready", () => {
@@ -23,14 +54,7 @@ client.on("ready", () => {
 	// log size of client.channels
 	console.log(`Loaded ${client.channels.size} channels.`);
 
-	// create a new channel, then join it, then list the channel's owner
-	// client.createChannel(`test${Math.floor(Math.random() * 10000)}`, "test channel").then((channel) => {
-	// 	console.log(`Created channel ${channel.name} (${channel.id}) with description ${channel.description}`);
-	// 	client.joinChannel(channel.id).then((channel) => { });
-	// });
-
 	client.channels.forEach((channel) => {
-		console.log("Sending message to channel " + channel.name);
 		channel.send("Hello, world!");
 	});
 });
