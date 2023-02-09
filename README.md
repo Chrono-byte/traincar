@@ -5,9 +5,6 @@ Traincar is a simple JavaScript API wrapper for Hammer. It is the reference impl
 ## Installation
 
 Note: Hammer is currently in development and is not ready for production use.
-## License
-
-Hammer is currently all rights reserved. This will change in the future.
 
 ## Contributing
 
