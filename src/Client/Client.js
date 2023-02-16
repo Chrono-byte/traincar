@@ -13,6 +13,7 @@ const { WebSocket } = require("ws");
 const { EventEmitter } = require("events");
 
 const { Channel } = require("../Channel/Channel");
+// const { User } = require("../User/User");
 const Message = require("../Message/Message");
 
 // hammer client
@@ -88,7 +89,7 @@ class Client extends EventEmitter {
 			}
 
 			// once the socket is open
-			this.socket.onopen = () => {};
+			this.socket.onopen = () => { };
 
 			// when socket is closed, emit the close event
 			this.socket.onclose = () => {
@@ -101,6 +102,7 @@ class Client extends EventEmitter {
 				this.user = null;
 
 				// set socket to closed
+				this.socket = null;
 
 				// emit the logout event
 				this.emit("logout");
@@ -110,7 +112,6 @@ class Client extends EventEmitter {
 			this.socket.onerror = (error) => {
 				console.error(`WebSocket error: ${error.message}`);
 			};
-
 			// Listen for messages from the server
 			this.socket.onmessage = (event) => {
 				let message;
@@ -138,69 +139,16 @@ class Client extends EventEmitter {
 								},
 								type: "IDENTIFY"
 							}));
-
-							// wait 125ms then request channels on the server
-							setTimeout(() => {
-								// get all channels that the user is in api:port/api/user/:id/channels
-								fetch(`http://${this.host}:${this.port + 1}/api/user/${this.id}/channels`, {
-									method: "GET",
-									headers: {
-										"Content-Type": "application/json",
-										"Authorization": `${this.token}`
-									}
-								}).then(response => {
-									if (response.status === 200) {
-										return response.json();
-									} else if (response.status === 500) {
-										throw new Error(`Internal server error ${response.body}`);
-									} else if (response.status === 401) {
-										throw new Error("Invalid username or password");
-									} else {
-										throw new Error(`Unknown error ${response.status}`);
-									}
-								}).then(data => {
-									// add all channels to the client
-									for (let channel of data) {
-										channel = channel[1];
-
-										var { id, name, description, owner } = channel;
-
-										this.channels.set(id, new Channel(id, name, description, owner, this));
-									}
-
-									// emit the ready event
-									this.emit("ready");
-								}).catch(error => {
-									console.log(error);
-									console.error(`Failed to get channels: ${error}`);
-								});
-							}, 125);
-
-							// wait 250ms then request users on the server
-							/* setTimeout(() => {
-										// get all users on the server api:port/api/users
-										fetch(`http://${this.host}:${this.port + 1}/api/users`, {
-											method: 'GET',
-											headers: {
-												'Content-Type': 'application/json',
-												'Authorization': `${this.token}`
-											}
-										}).then(response => {
-											if (response.status === 200) {
-												return response.json();
-											} else if (response.status === 500) {
-												throw new Error(`Internal server error ${response.body}`);
-											} else if (response.status === 401) {
-												throw new Error("Invalid username or password");
-											} else {
-												throw new Error(`Unknown error ${response.status}`);
-											}
-										}).then(data => {}).catch(error => {
-											console.error(`Failed to get users: ${error}`);
-										});
-									}, 250); */
 						} else {
-							throw new Error(`Error: ${message.data.message}`);
+							throw new Error("unknown error");
+						}
+						break;
+					case "READY":
+						if (message.op == 12 && message.type == "READY") {
+							// emit the ready event
+							this.emit("ready");
+						} else {
+							throw new Error("unknown error");
 						}
 						break;
 					case "HEARTBEAT":
@@ -214,7 +162,6 @@ class Client extends EventEmitter {
 						this.emit("heartbeat", message);
 						break;
 					case "MESSAGE": // message event
-
 						// create a new message object
 						var msg = new Message(message.data, this);
 
@@ -225,7 +172,7 @@ class Client extends EventEmitter {
 						channel = message.data.channel;
 
 						// add channel to channels map
-						this.channels.set(channel.id, new Channel(channel.name, channel.description, channel.id, channel.owner, this));
+						this.channels.set(channel.id, new Channel(channel.id, channel.name, channel.description, channel.owner, this));
 
 						// emit the joinChannel event with the channel
 						this.emit("joinChannel", this.channels.get(message.data.channel.id));
@@ -234,6 +181,9 @@ class Client extends EventEmitter {
 						this.emit("leaveChannel", message);
 						break;
 					case "CHANNEL_UPDATE": // update channel event
+						// get the channel that is being updated
+						this.channels.set(message.data.id, new Channel(message.data));
+
 						this.emit("updateChannel", message);
 						break;
 					case "CREATE_USER": // create user event

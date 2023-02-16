@@ -7,6 +7,8 @@ class Message {
 		this.createdAt = new Date();
 
 		this.client = client;
+
+		this.id = data.id;
 	}
 
 	reply(content) {

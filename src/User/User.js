@@ -10,10 +10,13 @@
 */
 
 class User {
-	constructor(id, username, permissions) {
-		this.id = id;
-		this.username = username;
-		this.permissions = permissions;
+	constructor(user) {
+		this.username = user.username;
+		this.id = user.id;
+		this.avatarURL = user.avatarURL;
+		this.permissions = user.permissions;
+
+		this.joinedAt = user.joinedAt;
 	}
 }
 

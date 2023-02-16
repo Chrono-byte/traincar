@@ -15,6 +15,7 @@ const client = new Client({
 	port: 8080
 });
 
+/*
 client.on("message", (message) => {
 	console.log(`Received message from ${message.author.username} (${message.author.id}): ${message.content}`);
 
@@ -45,18 +46,11 @@ client.on("message", (message) => {
 			break;
 
 	}
-});
+});*/
 
 client.on("ready", () => {
 	// log our username and id
 	console.log(`Logged in as ${client.username} (${client.id})`);
-
-	// log size of client.channels
-	console.log(`Loaded ${client.channels.size} channels.`);
-
-	client.channels.forEach((channel) => {
-		channel.send("Hello, world!");
-	});
 });
 
 client.on("joinChannel", (channel) => {
@@ -74,5 +68,3 @@ if (process.argv[2] === "1") {
 } else {
 	throw new Error("Invalid user");
 }
-
-// client.logout();

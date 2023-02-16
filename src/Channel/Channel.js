@@ -7,17 +7,17 @@ class BaseChannel {
 }
 
 class Channel extends BaseChannel {
-	constructor(id, name, description, owner, client) {
+	constructor(channel, client) {
 		super();
 
-		this.name = name;
-		this.description = description;
+		this.name = channel.name;
+		this.description = channel.description;
 
-		this.id = id;
+		this.id = channel.id;
 
 		this.members = new Map();
 
-		this.owner = owner;
+		this.owner = channel.owner;
 
 		this.client = client;
 	}
@@ -48,7 +48,7 @@ class Channel extends BaseChannel {
 			// restrucure the message
 			msg = {
 				content: msg.content,
-				channel: this.id
+				channel: this.id,
 			};
 
 			// send the message to the server
