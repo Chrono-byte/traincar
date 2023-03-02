@@ -6,7 +6,7 @@
   "license": "zlib-acknowledgement",
   "private": false,
   "dependencies": {
-    "ws": "^8.12.0"
+    "ws": "^8.12.1"
   },
   "scripts": {
     "lint": "eslint ./*/*/* --ext js",
