@@ -51,6 +51,10 @@ client.on("message", (message) => {
 client.on("ready", () => {
 	// log our username and id
 	console.log(`Logged in as ${client.username} (${client.id})`);
+
+	// log the size of our channels and users
+	console.log(`Channels: ${client.channels.size}`);
+	console.log(`Users: ${client.users.size}`);
 });
 
 client.on("joinChannel", (channel) => {

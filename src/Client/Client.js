@@ -44,6 +44,8 @@ class Client extends EventEmitter {
 				throw new Error(`Internal server error ${response.body}`);
 			} else if (response.status === 422) {
 				throw new Error("Invalid username or password");
+			} else if (response.status === 401) {
+				throw new Error("Invalid username or password");
 			} else {
 				throw new Error(`Unknown error ${response.status}`);
 			}
