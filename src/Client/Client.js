@@ -12,9 +12,23 @@
 const { WebSocket } = require("ws");
 const { EventEmitter } = require("events");
 
-const { Channel } = require("../Channel/Channel");
-// const { User } = require("../User/User");
+const Channel = require("../Channel/Channel");
 const Message = require("../Message/Message");
+const Member = require("../Member/Member");
+
+class ChannelsManager extends Map {
+	find(name = null) {
+		if (!name) return null;
+
+		let channelF = null;
+
+		for (const channel of this.values()) {
+			if (channel.name == name) return channelF = channel;
+		}
+
+		return channelF;
+	}
+}
 
 // hammer client
 class Client extends EventEmitter {
@@ -26,11 +40,30 @@ class Client extends EventEmitter {
 		this.port = host.port;
 
 		// initialize data structures
-		this.channels = new Map();
-		this.users = new Map();
+		this.channels = new ChannelsManager();
+		this.members = new Map();
 	}
 
 	login(username, password) {
+		// probe if server is online (ping status endpoint)
+		fetch(`http://${this.host}:${this.port + 1}/api/`, {
+			method: "GET",
+			headers: {
+				"Content-Type": "application/json"
+			}
+		}).then(response => {
+			if (!response) return false;
+			return true;
+		}).catch(err => {
+			if (err.message === "fetch failed") {
+				throw new Error("Server is offline");
+			}
+			if (err.code === "ECONNREFUSED") {
+				throw new Error("Server is offline");
+			}
+			process.exit(1);
+		});
+
 		// authenticate with the auth server
 		fetch(`http://${this.host}:${this.port + 1}/auth/login/email?username=${username}&password=${password}`, {
 			method: "POST",
@@ -74,7 +107,6 @@ class Client extends EventEmitter {
 			}
 		});
 
-
 		this.on("login", () => {
 			// connect to websocket
 			try {
@@ -97,7 +129,7 @@ class Client extends EventEmitter {
 			this.socket.onclose = () => {
 				// remove all client data
 				this.channels.clear();
-				this.users.clear();
+				this.members.clear();
 				this.username = null;
 				this.id = null;
 				this.token = null;
@@ -147,6 +179,22 @@ class Client extends EventEmitter {
 						break;
 					case "READY":
 						if (message.op == 12 && message.type == "READY") {
+							// channels
+							var channelsToAssemble = JSON.parse(message.data.channels);
+
+							// create map from array
+							channelsToAssemble.forEach(channel => {
+								this.channels.set(channel.id, new Channel(channel, this));
+							});
+
+							// users
+							var usersToAssemble = JSON.parse(message.data.users);
+
+							// create map from array
+							usersToAssemble.forEach(user => {
+								this.members.set(user.id, new Member(user.username, user.id, user.avatar, user.permissions));
+							});
+
 							// emit the ready event
 							this.emit("ready");
 						} else {

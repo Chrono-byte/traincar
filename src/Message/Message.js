@@ -1,4 +1,6 @@
 class Message {
+	#client;
+
 	constructor(data, client, channel) {
 		this.content = (data.content ? data.content : data);
 		this.author = data.author;
@@ -6,7 +8,7 @@ class Message {
 
 		this.createdAt = new Date();
 
-		this.client = client;
+		this.#client = client;
 
 		this.id = data.id;
 	}

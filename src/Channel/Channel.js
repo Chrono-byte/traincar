@@ -7,6 +7,8 @@ class BaseChannel {
 }
 
 class Channel extends BaseChannel {
+	#client;
+
 	constructor(channel, client) {
 		super();
 
@@ -19,31 +21,15 @@ class Channel extends BaseChannel {
 
 		this.owner = channel.owner;
 
-		this.client = client;
+		this.#client = client;
 	}
 
 	send(message) {
 		var msg;
 
-		if (typeof message == "object") {
+		if (typeof message == "object" || typeof message == "string") {
 			// Create a new message
-			msg = new Message(message, this.client, this.id);
-
-			// restrucure the message
-			msg = {
-				content: msg.content,
-				channel: msg.channel.id
-			};
-
-			// send the message to the server
-			this.client.socket.json({
-				op: 0,
-				data: msg,
-				type: "MESSAGE"
-			});
-		} else if (typeof message == "string") {
-			// Create a new message
-			msg = new Message(message, this.client, this.id);
+			msg = new Message(message, this.#client, this.id);
 
 			// restrucure the message
 			msg = {
@@ -52,13 +38,15 @@ class Channel extends BaseChannel {
 			};
 
 			// send the message to the server
-			this.client.socket.json({
+			this.#client.socket.json({
 				op: 0,
 				data: msg,
 				type: "MESSAGE"
 			});
+		} else {
+			throw new TypeError("Message must be a string or object");
 		}
 	}
 }
 
-module.exports = { Channel };
+module.exports = Channel;

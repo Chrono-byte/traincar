@@ -15,7 +15,7 @@ const client = new Client({
 	port: 8080
 });
 
-/*
+
 client.on("message", (message) => {
 	console.log(`Received message from ${message.author.username} (${message.author.id}): ${message.content}`);
 
@@ -46,7 +46,7 @@ client.on("message", (message) => {
 			break;
 
 	}
-});*/
+});
 
 client.on("ready", () => {
 	// log our username and id
@@ -54,7 +54,16 @@ client.on("ready", () => {
 
 	// log the size of our channels and users
 	console.log(`Channels: ${client.channels.size}`);
-	console.log(`Users: ${client.users.size}`);
+	console.log(`Users: ${client.members.size}`);
+
+	// search for a channel named "general"
+	const channel = client.channels.find("general");
+
+	// if the channel exists
+	if (channel) {
+		// send a message to the channel
+		channel.send("Hello, world!");
+	}
 });
 
 client.on("joinChannel", (channel) => {
