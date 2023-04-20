@@ -61,7 +61,6 @@ class Client extends EventEmitter {
 			if (err.code === "ECONNREFUSED") {
 				throw new Error("Server is offline");
 			}
-			process.exit(1);
 		});
 
 		// authenticate with the auth server
