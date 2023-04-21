@@ -45,7 +45,7 @@ class Client extends EventEmitter {
 	}
 
 	login(username, password) {
-		// probe if server is online (ping status endpoint)
+		console.log(`http://${this.host}:${this.port + 1}/auth/login/email?username=${username}&password=${password}`);
 		fetch(`http://${this.host}:${this.port + 1}/api/`, {
 			method: "GET",
 			headers: {
@@ -97,9 +97,8 @@ class Client extends EventEmitter {
 			// connect to websocket
 			this.emit("login");
 		}).catch(error => {
-			if (error.code === "ECONNREFUSED") {
-				throw new Error("Server is offline");
-			} else if (error.code === "ECONNRESET") {
+			console.error(error);
+			if (error.cause.errno == -111) {
 				throw new Error("Server is offline");
 			} else {
 				console.error(error);
@@ -159,7 +158,7 @@ class Client extends EventEmitter {
 					throw new Error(`Error: ${message.data.message}`);
 				}
 
-				var channel;
+				let channel;
 				switch (message.type) {
 					case "HELLO":
 						if (message.data.message == "Authorized" && message.op == 10) {
@@ -179,7 +178,7 @@ class Client extends EventEmitter {
 					case "READY":
 						if (message.op == 12 && message.type == "READY") {
 							// channels
-							var channelsToAssemble = JSON.parse(message.data.channels);
+							const channelsToAssemble = JSON.parse(message.data.channels);
 
 							// create map from array
 							channelsToAssemble.forEach(channel => {
@@ -187,7 +186,7 @@ class Client extends EventEmitter {
 							});
 
 							// users
-							var usersToAssemble = JSON.parse(message.data.users);
+							const usersToAssemble = JSON.parse(message.data.users);
 
 							// create map from array
 							usersToAssemble.forEach(user => {
@@ -211,10 +210,7 @@ class Client extends EventEmitter {
 						this.emit("heartbeat", message);
 						break;
 					case "MESSAGE": // message event
-						// create a new message object
-						var msg = new Message(message.data, this);
-
-						this.emit("message", msg);
+						this.emit("message", new Message(message.data, this));
 						break;
 					case "CHANNEL_JOIN":
 						// set channel convenience variable
