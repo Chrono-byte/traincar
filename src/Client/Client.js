@@ -9,12 +9,15 @@
  * All rights reserved.
 */
 
-const { WebSocket } = require("ws");
-const { EventEmitter } = require("events");
+// import external modules
+import { WebSocket } from "npm:ws";
+import EventEmitter from "node:events";
+import got from "npm:got";
 
-const Channel = require("../Channel/Channel");
-const Message = require("../Message/Message");
-const Member = require("../Member/Member");
+// import classes
+import Message from "../Message/Message.js";
+import Channel from "../Channel/Channel.js";
+import Member from "../Member/Member.js";
 
 class ChannelsManager extends Map {
 	find(name = null) {
@@ -35,6 +38,8 @@ class Client extends EventEmitter {
 	constructor(host) {
 		super();
 
+		this.token = null;
+
 		// set host and port
 		this.host = host.hostname;
 		this.port = host.port;
@@ -44,217 +49,190 @@ class Client extends EventEmitter {
 		this.members = new Map();
 	}
 
-	login(username, password) {
-		console.log(`http://${this.host}:${this.port + 1}/auth/login/email?username=${username}&password=${password}`);
-		fetch(`http://${this.host}:${this.port + 1}/api/`, {
-			method: "GET",
-			headers: {
-				"Content-Type": "application/json"
-			}
-		}).then(response => {
-			if (!response) return false;
-			return true;
-		}).catch(err => {
-			if (err.message === "fetch failed") {
-				throw new Error("Server is offline");
-			}
-			if (err.code === "ECONNREFUSED") {
-				throw new Error("Server is offline");
-			}
-		});
-
+	async login(username, password) {
 		// authenticate with the auth server
-		fetch(`http://${this.host}:${this.port + 1}/auth/login/email?username=${username}&password=${password}`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json"
+		const data = await got.post(`http://${this.host}:${this.port + 1}/auth/login/email`, {
+			json: {
+				username: username,
+				password: password
 			}
-		}).then(response => {
-			if (response.status === 200) {
-				return response.json();
-			} else if (response.status === 500) {
-				throw new Error(`Internal server error ${response.body}`);
-			} else if (response.status === 422) {
-				throw new Error("Invalid username or password");
-			} else if (response.status === 401) {
-				throw new Error("Invalid username or password");
-			} else {
-				throw new Error(`Unknown error ${response.status}`);
-			}
-		}).then(data => {
-			// check that token is valid
-			if (data.token == null) {
-				throw new Error("Invalid token");
-			}
-
-			// set token
-			this.token = data.token;
-
-			// set username and id
-			this.username = data.username;
-			this.id = data.id;
-
-			// connect to websocket
-			this.emit("login");
-		}).catch(error => {
-			console.error(error);
-			if (error.cause.errno == -111) {
-				throw new Error("Server is offline");
-			} else {
-				console.error(error);
+		}).json().catch((err) => {
+			if(err) {
+				throw new Error("Failed to connect to server");
 			}
 		});
 
-		this.on("login", () => {
-			// connect to websocket
-			try {
-				// connect to websocket
-				this.socket = new WebSocket(`ws://${this.host}:${this.port}?token=${this.token}`);
+		// check that token is valid
+		if (data.token == null) {
+			throw new Error("Invalid token");
+		}
 
-				this.socket.json = (data) => {
-					this.socket.send(JSON.stringify(data));
-				};
+		// set token
+		this.token = data.token;
+
+		// set username and id
+		this.username = data.username;
+		this.id = data.id;
+
+		// connect to websocket
+		try {
+			const url = `ws://${this.host}:${this.port}/?token=${this.token}`;
+
+			console.log(url);
+
+			// connect to websocket
+			this.socket = new WebSocket(url, {
+				headers: {
+					"User-Agent": "traincar",
+					"X-Traincar-Version": "0.0.1"
+				}
+			});
+
+			this.socket.json = (data) => {
+				this.socket.send(JSON.stringify(data));
+			};
+		} catch {
+			console.error("Failed to connect to server");
+			// emit the logout event
+			this.emit("logout");
+		}
+
+		// once the socket is open
+		this.socket.onopen = () => {
+			console.log("test");
+		}
+
+		// when socket is closed, emit the close event
+		this.socket.onclose = () => {
+			// remove all client data
+			this.channels.clear();
+			this.members.clear();
+			this.username = null;
+			this.id = null;
+			this.token = null;
+			this.user = null;
+
+			// set socket to closed
+			this.socket = null;
+
+			// emit the logout event
+			this.emit("logout");
+		};
+
+		// handle conection errors
+		this.socket.onerror = (error) => {
+			console.error(`WebSocket error: ${error.message}`);
+		};
+		// Listen for messages from the server
+		this.socket.onmessage = (event) => {
+			let message;
+
+			try {
+				message = JSON.parse(event.data);
 			} catch {
-				console.error("Failed to connect to server");
-				// emit the logout event
-				this.emit("logout");
+				throw new Error("Could not parse message");
 			}
 
-			// once the socket is open
-			this.socket.onopen = () => { };
+			if (message.op == 9 && message.type == "ERROR") {
+				throw new Error(`Error: ${message.data.message}`);
+			}
 
-			// when socket is closed, emit the close event
-			this.socket.onclose = () => {
-				// remove all client data
-				this.channels.clear();
-				this.members.clear();
-				this.username = null;
-				this.id = null;
-				this.token = null;
-				this.user = null;
-
-				// set socket to closed
-				this.socket = null;
-
-				// emit the logout event
-				this.emit("logout");
-			};
-
-			// handle conection errors
-			this.socket.onerror = (error) => {
-				console.error(`WebSocket error: ${error.message}`);
-			};
-			// Listen for messages from the server
-			this.socket.onmessage = (event) => {
-				let message;
-
-				try {
-					message = JSON.parse(event.data);
-				} catch {
-					throw new Error("Could not parse message");
-				}
-
-				if (message.op == 9 && message.type == "ERROR") {
-					throw new Error(`Error: ${message.data.message}`);
-				}
-
-				let channel;
-				switch (message.type) {
-					case "HELLO":
-						if (message.data.message == "Authorized" && message.op == 10) {
-							// send HELLO
-							this.socket.send(JSON.stringify({
-								op: 11,
-								data: {
-									heartbeat_interval: 1000,
-									heartbeat_timeout: 5000
-								},
-								type: "IDENTIFY"
-							}));
-						} else {
-							throw new Error("unknown error");
-						}
-						break;
-					case "READY":
-						if (message.op == 12 && message.type == "READY") {
-							// channels
-							const channelsToAssemble = JSON.parse(message.data.channels);
-
-							// create map from array
-							channelsToAssemble.forEach(channel => {
-								this.channels.set(channel.id, new Channel(channel, this));
-							});
-
-							// users
-							const usersToAssemble = JSON.parse(message.data.users);
-
-							// create map from array
-							usersToAssemble.forEach(user => {
-								this.members.set(user.id, new Member(user.username, user.id, user.avatar, user.permissions));
-							});
-
-							// emit the ready event
-							this.emit("ready");
-						} else {
-							throw new Error("unknown error");
-						}
-						break;
-					case "HEARTBEAT":
-						// send heartbeat ack
+			let channel;
+			switch (message.type) {
+				case "HELLO":
+					if (message.data.message == "Authorized" && message.op == 10) {
+						// send HELLO
 						this.socket.send(JSON.stringify({
 							op: 11,
-							data: {},
-							type: "HEARTBEAT_ACK"
+							data: {
+								heartbeat_interval: 1000,
+								heartbeat_timeout: 5000
+							},
+							type: "IDENTIFY"
 						}));
+					} else {
+						throw new Error("unknown error");
+					}
+					break;
+				case "READY":
+					if (message.op == 12 && message.type == "READY") {
+						// channels
+						const channelsToAssemble = JSON.parse(message.data.channels);
 
-						this.emit("heartbeat", message);
-						break;
-					case "MESSAGE": // message event
-						this.emit("message", new Message(message.data, this));
-						break;
-					case "CHANNEL_JOIN":
-						// set channel convenience variable
-						channel = message.data.channel;
+						// create map from array
+						channelsToAssemble.forEach(channel => {
+							this.channels.set(channel.id, new Channel(channel, this));
+						});
 
-						// add channel to channels map
-						this.channels.set(channel.id, new Channel(channel.id, channel.name, channel.description, channel.owner, this));
+						// users
+						const usersToAssemble = JSON.parse(message.data.users);
 
-						// emit the joinChannel event with the channel
-						this.emit("joinChannel", this.channels.get(message.data.channel.id));
-						break;
-					case "CHANNEL_LEAVE": // leave channel event
-						this.emit("leaveChannel", message);
-						break;
-					case "CHANNEL_UPDATE": // update channel event
-						// get the channel that is being updated
-						this.channels.set(message.data.id, new Channel(message.data));
+						// create map from array
+						usersToAssemble.forEach(user => {
+							this.members.set(user.id, new Member(user.username, user.id, user.avatar, user.permissions));
+						});
 
-						this.emit("updateChannel", message);
-						break;
-					case "CREATE_USER": // create user event
-						this.emit("createUser", message);
-						break;
-					case "UPDATE_USER":
-						this.emit("updateUser", message);
-						break;
-					case "DELETE_USER":
-						this.emit("deleteUser", message);
-						break;
-					case "UPDATE_MEMBERS":
-						// get the channel that the members are being updated for
-						channel = this.channels.get(message.data.channel);
+						// emit the ready event
+						this.emit("ready");
+					} else {
+						throw new Error("unknown error");
+					}
+					break;
+				case "HEARTBEAT":
+					// send heartbeat ack
+					this.socket.send(JSON.stringify({
+						op: 11,
+						data: {},
+						type: "HEARTBEAT_ACK"
+					}));
 
-						// update the members
-						channel.members = message.data.members;
+					this.emit("heartbeat", message);
+					break;
+				case "MESSAGE": // message event
+					this.emit("message", new Message(message.data, this));
+					break;
+				case "CHANNEL_JOIN":
+					// set channel convenience variable
+					channel = message.data.channel;
 
-						this.emit("updateMembers", message);
-						break;
-					default:
-						console.error(`Unknown message type from server, most likely a bug or an unimplemented feature ${message.type}`);
-						break;
-				}
-			};
-		});
+					// add channel to channels map
+					this.channels.set(channel.id, new Channel(channel.id, channel.name, channel.description, channel.owner, this));
+
+					// emit the joinChannel event with the channel
+					this.emit("joinChannel", this.channels.get(message.data.channel.id));
+					break;
+				case "CHANNEL_LEAVE": // leave channel event
+					this.emit("leaveChannel", message);
+					break;
+				case "CHANNEL_UPDATE": // update channel event
+					// get the channel that is being updated
+					this.channels.set(message.data.id, new Channel(message.data));
+
+					this.emit("updateChannel", message);
+					break;
+				case "CREATE_USER": // create user event
+					this.emit("createUser", message);
+					break;
+				case "UPDATE_USER":
+					this.emit("updateUser", message);
+					break;
+				case "DELETE_USER":
+					this.emit("deleteUser", message);
+					break;
+				case "UPDATE_MEMBERS":
+					// get the channel that the members are being updated for
+					channel = this.channels.get(message.data.channel);
+
+					// update the members
+					channel.members = message.data.members;
+
+					this.emit("updateMembers", message);
+					break;
+				default:
+					console.error(`Unknown message type from server, most likely a bug or an unimplemented feature ${message.type}`);
+					break;
+			}
+		};
 	}
 
 	logout() {
@@ -386,4 +364,4 @@ class Client extends EventEmitter {
 	}
 }
 
-module.exports = Client;
+export default Client;

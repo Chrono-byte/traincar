@@ -9,6 +9,8 @@
  * All rights reserved.
  * Redistribution and use in source and binary forms governed under the terms of the zlib/libpng License with Acknowledgement license.
 */
+import Client from "./Client/Client.js";
 
-// Client
-exports.Client = require("./Client/Client");
+export {
+	Client
+}

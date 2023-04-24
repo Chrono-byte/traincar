@@ -1,4 +1,4 @@
-const Message = require("../Message/Message");
+import Message from "../Message/Message.js";
 
 class BaseChannel {
 	constructor() {
@@ -25,7 +25,7 @@ class Channel extends BaseChannel {
 	}
 
 	send(message) {
-		var msg;
+		let msg;
 
 		if (typeof message == "object" || typeof message == "string") {
 			// Create a new message
@@ -49,4 +49,4 @@ class Channel extends BaseChannel {
 	}
 }
 
-module.exports = Channel;
+export default Channel;

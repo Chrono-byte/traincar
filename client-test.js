@@ -9,7 +9,8 @@
  * All rights reserved.
 */
 
-const { Client } = require("./src/index.js");
+import { Client } from "./src/index.js";
+import process from "node:process";
 const client = new Client({
 	hostname: "localhost",
 	port: 8080

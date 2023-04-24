@@ -1,5 +1,3 @@
-const Message = require("../Message/Message");
-
 class BaseChannel {
 	constructor() {
 		this.messages = new Map();
@@ -19,4 +17,4 @@ class Member extends BaseChannel {
 	}
 }
 
-module.exports = Member;
+export default Member;
