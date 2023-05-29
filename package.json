@@ -7,7 +7,7 @@
   "private": false,
   "dependencies": {
     "events": "3.3.0",
-    "got": "^12.6.0",
+    "got": "^13.0.0",
     "ws": "^8.13.0"
   },
   "scripts": {
