@@ -78,8 +78,6 @@ class Client extends EventEmitter {
 		try {
 			const url = `ws://${this.host}:${this.port}/?token=${this.token}`;
 
-			console.log(url);
-
 			// connect to websocket
 			this.socket = new WebSocket(url, {
 				headers: {

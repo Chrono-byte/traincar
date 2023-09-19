@@ -71,10 +71,6 @@ client.on("joinChannel", (channel) => {
 	console.log(`Joined channel ${channel.name} (${channel.id}) with description ${channel.description}`);
 });
 
-client.on("logout", () => {
-	console.log("Logged out");
-});
-
 if (process.argv[2] === "1") {
 	client.login("admin@disilla.org", "password");
 } else if (process.argv[2] === "2") {
